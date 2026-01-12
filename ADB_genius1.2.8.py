@@ -146,6 +146,7 @@ def main():
     
     #===============================================================================================命令行栏
 
+    '''
     # 创建一个Frame来放置Text控件，并设置距离左边(x)400,顶部35，底部300(以周围部件的距离为标准)，并随主窗口大小改变
     text_frame = tk.Frame(main_window)
     text_frame.pack(fill=tk.BOTH, expand=True, padx=(396,0), pady=(60, 300))
@@ -160,23 +161,33 @@ def main():
     output_text_label.place(x=400, relwidth=1, height=25, y=35)
 
     output_text.tag_configure('error_tag',foreground='red',background='#be8a8a') #设置tag即插入文字的大小,颜色等
-    #===============================================================================================命令行栏
+    '''
 
+    text_frame = tk.Frame(main_window, background='#1e1e1e')
+    text_frame.pack(fill=tk.BOTH, expand=True, padx=(396,0), pady=(60, 300))
+    text_frame.rowconfigure(0, weight=1)
+    text_frame.columnconfigure(1, weight=1)
 
-    #===============================================================================================输入
+    output_text = tk.Text(text_frame, wrap=tk.WORD, borderwidth=4, bg='#1e1e1e', foreground='#ffffff', highlightbackground='#3c3c3c', highlightcolor='#3c3c3c', font=('微软雅黑','12'), state=tk.NORMAL)
+    output_text.grid(row=0, column=0, columnspan=3, sticky='nsew', padx=2, pady=(2, 0))
 
+    output_text_label = tk.Label(main_window, text=' 输出：', bg='#1e1e1e', foreground='#ffffff', font=('微软雅黑', '13'), anchor='w')
+    output_text_label.place(x=400, relwidth=1, height=25, y=35)
 
-    command_text_label = tk.Label(main_window,text='输入命令：', bg='#1e1e1e', foreground='#ffffff', font=('微软雅黑', '13'))
-    command_text_label.place(x=430, width=100, rely=1, height=25, y=-263-25)
-    command_input = tk.Text(main_window, wrap=tk.WORD, borderwidth=4, bg='#2e2e2e', foreground='#ffffff', highlightbackground='#e1e1e1', highlightcolor='#e1e1e1', font=('微软雅黑', '12'))
-    command_input.place(x=430, width=window_size[0]-430-180, rely=1, height=200, y=-60-200)#减去60指的是距离底部60，再减200是抵消自身高度
+    input_label = tk.Label(text_frame, text='adb>', bg='#1e1e1e', foreground='#ffffff', font=('微软雅黑', '12'))
+    input_label.grid(row=1, column=0, sticky='w', padx=(8, 4), pady=6)
+    command_input = tk.Entry(text_frame, borderwidth=4, bg='#2e2e2e', foreground='#ffffff', highlightbackground='#e1e1e1', highlightcolor='#e1e1e1', font=('微软雅黑', '12'))
+    command_input.grid(row=1, column=1, sticky='ew', padx=(0, 6), pady=6)
 
-    command_execute_button = tk.Button(main_window, text="执行\n（省略开头的'adb'不用写）", activebackground='#1177bb', activeforeground='#ffffff', foreground='#ffffff',background='#0e639c',borderwidth=0, command=active_execute_adb_command)
-    command_execute_button.place(relx=1,rely=1,height=150,width=140,x=-20-140,y=-75-150)
+    command_execute_button = tk.Button(text_frame, text="执行", activebackground='#1177bb', activeforeground='#ffffff', foreground='#ffffff', background='#0e639c', borderwidth=0, command=active_execute_adb_command)
+    command_execute_button.grid(row=1, column=2, sticky='e', padx=(0, 8), pady=6)
     command_execute_button.bind('<Enter>', lambda event: command_execute_button.config(bg='#1177bb'))
     command_execute_button.bind('<Leave>', lambda event: command_execute_button.config(bg='#0e639c'))
     command_execute_button.config(state=tk.DISABLED)  # 未选中设备时，设置按钮为无法按下状态
-    #===============================================================================================输入
+    command_input.bind('<Return>', lambda event: active_execute_adb_command())
+
+    output_text.tag_configure('error_tag',foreground='red',background='#be8a8a') #设置tag即插入文字的大小,颜色等
+    #===============================================================================================命令行栏
 
 
     #===============================================================================================左菜单栏
@@ -591,6 +602,7 @@ def active_execute_adb_command():
 def execute_adb_command(cmd):
     global selected_device
     global output_text
+    global command_input
     if selected_device:
         #进程树函数
         def execute_thread(cmd_):
@@ -598,12 +610,15 @@ def execute_adb_command(cmd):
             global selected_device
             shell_root_path = os.getcwd()
             if cmd_ == 'N':#执行自定义命令
-                command = command_input.get("1.0","end").split('\n')[0]
+                command = command_input.get().strip()
+                if not command:
+                    return
                 command = command.split(' ')
                 print(command)
                 adb_command = ['adb','-s',str(selected_device)]
                 for i in range(len(command)):
                     adb_command.append(command[i])
+                command_input.delete(0, tk.END)
                 #print('execute command:',adb_command)
                 output_text.insert(tk.END, shell_root_path + '> ' + ' '.join(adb_command))  # 显示输入的命令
                 result = subprocess.run(adb_command, shell=True, capture_output=True, text=True)
@@ -700,15 +715,54 @@ def Install_apps():
             if 'Success' in result.stdout and result.returncode == 0:
                 text_1.destroy()
                 messagebox.showinfo(title=f'ADBgenius v{version}',message='成功安装"' + app_pc_path + '"')
-            elif 'INSTALL_FAILED_SHARED_USER_INCOMPATIBLE' in result.stdout:
-                text_1.destroy()
-                messagebox.showerror(title=f'ADBgenius v{version}',message='安装失败!\n请在设备上同意安装请求！\n错误:' + str(result.stderr))
             else:
                 text_1.destroy()
-                messagebox.showerror(title=f'ADBgenius v{version}',message='安装失败!\n输出:' + str(result.stdout) + '\n错误:' + str(result.stderr))
-                show_app_install_help()
+                failure_info = match_install_failure_reason(result.stdout + '\n' + result.stderr)
+                if failure_info:
+                    failure_code, failure_reason = failure_info
+                    messagebox.showerror(title=f'ADBgenius v{version}',message='安装失败!\n故障码:' + failure_code + '\n原因:' + failure_reason + '\n输出:' + str(result.stdout) + '\n错误:' + str(result.stderr))
+                else:
+                    messagebox.showerror(title=f'ADBgenius v{version}',message='安装失败!\n输出:' + str(result.stdout) + '\n错误:' + str(result.stderr))
+                    show_app_install_help()
 
 
+
+def match_install_failure_reason(install_output):
+    failure_map = {
+        'INSTALL_FAILED_ALREADY_EXISTS': '尝试安装一个已存在且签名不一致的应用。',
+        'INSTALL_FAILED_INVALID_APK': 'APK 文件路径无效、文件损坏或格式不正确。',
+        'INSTALL_FAILED_INVALID_URI': '提供的 APK 路径不是一个有效的 URI。',
+        'INSTALL_FAILED_INSUFFICIENT_STORAGE': '设备存储空间不足。',
+        'INSTALL_FAILED_DUPLICATE_PACKAGE': '系统已存在同包名的应用。',
+        'INSTALL_FAILED_NO_MATCHING_ABIS': '应用包含 native 库，但当前设备 CPU 架构不支持。',
+        'INSTALL_FAILED_UPDATE_INCOMPATIBLE': '新 APK 的签名与设备上已安装的旧版本不一致。',
+        'INSTALL_FAILED_SHARED_USER_INCOMPATIBLE': '请求的共享用户 ID 与已安装的现有应用不兼容。',
+        'INSTALL_FAILED_MISSING_SHARED_LIBRARY': '安装依赖一个共享库，但设备上不存在。',
+        'INSTALL_FAILED_REPLACE_COULDNT_DELETE': '无法删除旧版本的应用，可能文件被锁定或权限错误。',
+        'INSTALL_FAILED_DEXOPT': 'Dex 优化失败，通常是由于空间不足或损坏的 DEX 文件。',
+        'INSTALL_FAILED_OLDER_SDK': '应用的 minSdkVersion 高于设备的 Android 版本。',
+        'INSTALL_FAILED_CONFLICTING_PROVIDER': '应用声明的 Content Provider 授权与已安装的应用冲突。',
+        'INSTALL_FAILED_NEWER_SDK': '应用的 targetSdkVersion 低于设备系统要求。',
+        'INSTALL_FAILED_TEST_ONLY': 'APK 被标记为 testOnly，但未使用 -t 参数安装。',
+        'INSTALL_PARSE_FAILED_NOT_APK': '选择的文件不是有效的 APK 文件。',
+        'INSTALL_PARSE_FAILED_BAD_MANIFEST': 'AndroidManifest.xml 文件无法解析，可能已损坏。',
+        'INSTALL_PARSE_FAILED_UNEXPECTED_EXCEPTION': '解析 APK 时发生意外异常。',
+        'INSTALL_PARSE_FAILED_NO_CERTIFICATES': 'APK 没有签名。',
+        'INSTALL_CANCELED_BY_USER': '用户在设备上取消安装。',
+        'INSTALL_FAILED_ABORTED': '安装过程被主动中止。',
+        'INSTALL_FAILED_VERIFICATION_FAILURE': '验证安装包时失败。',
+        'INSTALL_FAILED_PACKAGE_CHANGED': '应用包名与预期不符。',
+        'error: device not found': '无设备连接（adb devices 空列表）。',
+        'error: device offline': '设备无响应（offline 状态）。',
+        'error: device unauthorized': '设备未授权 USB 调试。',
+        'Error: Unable to open file': 'ADB 无法读取指定的 APK 文件，路径错误或权限不足。',
+        'Error: Permission denied': 'ADB 进程对 APK 文件没有读取权限。',
+        'The APK file does not exist on disk': '文件路径错误或路径变量未正确展开。',
+    }
+    for failure_code, failure_reason in failure_map.items():
+        if failure_code in install_output:
+            return failure_code, failure_reason
+    return None
 
 def show_app_install_help():
     text = '''                                       安装失败故障码解析
