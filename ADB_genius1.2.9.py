@@ -9,6 +9,8 @@ import subprocess
 import threading
 import time
 import tkinter as tk
+import sys
+import ctypes
 from tkinter import Menu, filedialog, simpledialog 
 from tkinter import messagebox
 import tkinter.font as tkFont
@@ -71,6 +73,72 @@ def main():
     main_window.geometry('1000x800+300+100')  
     #main_window.resizable(0,0)#锁定窗口大小
     main_window.overrideredirect(True)#取消默认窗口管理器工具栏
+
+    user32 = ctypes.windll.user32 if sys.platform == "win32" else None
+    GWL_STYLE = -16
+    GWL_EXSTYLE = -20
+    WS_SYSMENU = 0x00080000
+    WS_MINIMIZEBOX = 0x00020000
+    WS_EX_APPWINDOW = 0x00040000
+    WS_EX_TOOLWINDOW = 0x00000080
+    SW_MINIMIZE = 6
+    SW_RESTORE = 9
+    SWP_FRAMECHANGED = 0x0020
+    SWP_NOMOVE = 0x0002
+    SWP_NOSIZE = 0x0001
+    SWP_NOZORDER = 0x0004
+    SWP_NOACTIVATE = 0x0010
+    was_minimized = False
+
+    def apply_win32_styles():
+        if sys.platform != "win32" or user32 is None:
+            return
+        hwnd = main_window.winfo_id()
+        style = user32.GetWindowLongW(hwnd, GWL_STYLE)
+        style |= WS_SYSMENU | WS_MINIMIZEBOX
+        user32.SetWindowLongW(hwnd, GWL_STYLE, style)
+        exstyle = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+        exstyle |= WS_EX_APPWINDOW
+        exstyle &= ~WS_EX_TOOLWINDOW
+        user32.SetWindowLongW(hwnd, GWL_EXSTYLE, exstyle)
+        user32.SetWindowPos(
+            hwnd,
+            0,
+            0,
+            0,
+            0,
+            0,
+            SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+        )
+
+    def minimize_window():
+        nonlocal was_minimized
+        if sys.platform != "win32" or user32 is None:
+            return
+        hwnd = main_window.winfo_id()
+        was_minimized = True
+        user32.ShowWindow(hwnd, SW_MINIMIZE)
+
+    def restore_window(focus_only=False):
+        if sys.platform != "win32" or user32 is None:
+            return
+        hwnd = main_window.winfo_id()
+        if not focus_only:
+            user32.ShowWindow(hwnd, SW_RESTORE)
+        user32.SetForegroundWindow(hwnd)
+        main_window.lift()
+        main_window.focus_force()
+
+    def on_window_map(_event):
+        nonlocal was_minimized
+        if was_minimized:
+            was_minimized = False
+            restore_window(focus_only=True)
+
+    main_window.update_idletasks()
+    if sys.platform == "win32":
+        main_window.after(0, apply_win32_styles)
+        main_window.bind("<Map>", on_window_map)
 
 
 
@@ -479,7 +547,7 @@ def main():
         #最小化键
         minimizebuttonfont = tkFont.Font(size=12, weight=tkFont.BOLD)#Exitbutton样式
         minimizebutton=tk.Button(main_window,activebackground="#505050", foreground='#b2b2b2',
-                                background='#3c3c3c',command='',text='-',font=minimizebuttonfont,borderwidth=0)
+                                background='#3c3c3c',command=minimize_window,text='-',font=minimizebuttonfont,borderwidth=0)
         minimizebutton.place(height=35, width=55,x=window_size[0]-165,y=0)#根据window_size中储存的窗口大小确定绝对位置
         minimizebutton.bind('<Enter>', lambda event: minimizebutton.config(bg='#505050'))
         minimizebutton.bind('<Leave>', lambda event: minimizebutton.config(bg='#3c3c3c'))
