@@ -74,7 +74,7 @@ def main():
     #main_window.resizable(0,0)#锁定窗口大小
     main_window.overrideredirect(True)#取消默认窗口管理器工具栏
 
-    user32 = ctypes.windll.user32
+    user32 = ctypes.windll.user32 if sys.platform == "win32" else None
     GWL_STYLE = -16
     GWL_EXSTYLE = -20
     WS_SYSMENU = 0x00080000
@@ -88,9 +88,10 @@ def main():
     SWP_NOSIZE = 0x0001
     SWP_NOZORDER = 0x0004
     SWP_NOACTIVATE = 0x0010
+    was_minimized = False
 
     def apply_win32_styles():
-        if sys.platform != "win32":
+        if sys.platform != "win32" or user32 is None:
             return
         hwnd = main_window.winfo_id()
         style = user32.GetWindowLongW(hwnd, GWL_STYLE)
@@ -111,13 +112,15 @@ def main():
         )
 
     def minimize_window():
-        if sys.platform != "win32":
+        nonlocal was_minimized
+        if sys.platform != "win32" or user32 is None:
             return
         hwnd = main_window.winfo_id()
+        was_minimized = True
         user32.ShowWindow(hwnd, SW_MINIMIZE)
 
     def restore_window(focus_only=False):
-        if sys.platform != "win32":
+        if sys.platform != "win32" or user32 is None:
             return
         hwnd = main_window.winfo_id()
         if not focus_only:
@@ -125,15 +128,17 @@ def main():
         user32.SetForegroundWindow(hwnd)
         main_window.lift()
         main_window.focus_force()
-        main_window.attributes("-topmost", True)
-        main_window.attributes("-topmost", False)
 
     def on_window_map(_event):
-        restore_window(focus_only=True)
+        nonlocal was_minimized
+        if was_minimized:
+            was_minimized = False
+            restore_window(focus_only=True)
 
     main_window.update_idletasks()
-    main_window.after(0, apply_win32_styles)
-    main_window.bind("<Map>", on_window_map)
+    if sys.platform == "win32":
+        main_window.after(0, apply_win32_styles)
+        main_window.bind("<Map>", on_window_map)
 
 
 
