@@ -74,70 +74,92 @@ def main():
     #main_window.resizable(0,0)#锁定窗口大小
     main_window.overrideredirect(True)#取消默认窗口管理器工具栏
 
-    user32 = ctypes.windll.user32 if sys.platform == "win32" else None
-    GWL_STYLE = -16
+    user32 = None
+    get_window_long_ptr = None
+    set_window_long_ptr = None
     GWL_EXSTYLE = -20
-    WS_SYSMENU = 0x00080000
-    WS_MINIMIZEBOX = 0x00020000
     WS_EX_APPWINDOW = 0x00040000
     WS_EX_TOOLWINDOW = 0x00000080
     SW_MINIMIZE = 6
     SW_RESTORE = 9
-    SWP_FRAMECHANGED = 0x0020
     SWP_NOMOVE = 0x0002
     SWP_NOSIZE = 0x0001
     SWP_NOZORDER = 0x0004
     SWP_NOACTIVATE = 0x0010
+    SWP_FRAMECHANGED = 0x0020
     was_minimized = False
 
-    def apply_win32_styles():
-        if sys.platform != "win32" or user32 is None:
+    if sys.platform == "win32":
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        get_window_long_ptr = getattr(user32, "GetWindowLongPtrW", user32.GetWindowLongW)
+        set_window_long_ptr = getattr(user32, "SetWindowLongPtrW", user32.SetWindowLongW)
+        get_window_long_ptr.argtypes = [ctypes.wintypes.HWND, ctypes.c_int]
+        get_window_long_ptr.restype = ctypes.c_longlong
+        set_window_long_ptr.argtypes = [ctypes.wintypes.HWND, ctypes.c_int, ctypes.c_longlong]
+        set_window_long_ptr.restype = ctypes.c_longlong
+        user32.SetWindowPos.argtypes = [
+            ctypes.wintypes.HWND,
+            ctypes.wintypes.HWND,
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.c_uint,
+        ]
+        user32.SetWindowPos.restype = ctypes.wintypes.BOOL
+
+    def apply_appwindow_exstyle(hwnd):
+        if user32 is None or get_window_long_ptr is None or set_window_long_ptr is None:
             return
-        hwnd = main_window.winfo_id()
-        style = user32.GetWindowLongW(hwnd, GWL_STYLE)
-        style |= WS_SYSMENU | WS_MINIMIZEBOX
-        user32.SetWindowLongW(hwnd, GWL_STYLE, style)
-        exstyle = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-        exstyle |= WS_EX_APPWINDOW
-        exstyle &= ~WS_EX_TOOLWINDOW
-        user32.SetWindowLongW(hwnd, GWL_EXSTYLE, exstyle)
-        user32.SetWindowPos(
-            hwnd,
-            0,
-            0,
-            0,
-            0,
-            0,
-            SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
-        )
+        exstyle = get_window_long_ptr(hwnd, GWL_EXSTYLE)
+        new_exstyle = (exstyle & ~WS_EX_TOOLWINDOW) | WS_EX_APPWINDOW
+        if new_exstyle != exstyle:
+            set_window_long_ptr(hwnd, GWL_EXSTYLE, new_exstyle)
+            user32.SetWindowPos(
+                hwnd,
+                0,
+                0,
+                0,
+                0,
+                0,
+                SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+            )
+
+    def refresh_main_window_exstyle():
+        if user32 is None:
+            return
+        hwnd = ctypes.wintypes.HWND(main_window.winfo_id())
+        apply_appwindow_exstyle(hwnd)
 
     def minimize_window():
         nonlocal was_minimized
-        if sys.platform != "win32" or user32 is None:
+        if user32 is None:
             return
-        hwnd = main_window.winfo_id()
+        hwnd = ctypes.wintypes.HWND(main_window.winfo_id())
         was_minimized = True
         user32.ShowWindow(hwnd, SW_MINIMIZE)
 
     def restore_window(focus_only=False):
-        if sys.platform != "win32" or user32 is None:
+        if user32 is None:
             return
-        hwnd = main_window.winfo_id()
+        hwnd = ctypes.wintypes.HWND(main_window.winfo_id())
         if not focus_only:
             user32.ShowWindow(hwnd, SW_RESTORE)
+            refresh_main_window_exstyle()
         user32.SetForegroundWindow(hwnd)
         main_window.lift()
         main_window.focus_force()
 
     def on_window_map(_event):
         nonlocal was_minimized
+        refresh_main_window_exstyle()
         if was_minimized:
             was_minimized = False
             restore_window(focus_only=True)
 
     main_window.update_idletasks()
     if sys.platform == "win32":
-        main_window.after(0, apply_win32_styles)
+        main_window.after(0, refresh_main_window_exstyle)
         main_window.bind("<Map>", on_window_map)
 
 
