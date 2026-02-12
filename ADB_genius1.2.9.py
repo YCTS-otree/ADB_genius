@@ -132,31 +132,21 @@ def main():
     def minimize_window():
         nonlocal was_minimized
         was_minimized = True
-        if sys.platform == "win32":
-            # 无边框窗口在最小化前先恢复窗口管理器接管，避免无法从任务栏恢复。
-            main_window.overrideredirect(False)
+        hwnd = get_main_hwnd()
+        if hwnd and user32 is not None:
+            user32.ShowWindow(hwnd, SW_MINIMIZE)
+            return
         main_window.iconify()
-
-    def restore_window(focus_only=False):
-        if not focus_only:
-            main_window.deiconify()
-
-        if sys.platform == "win32":
-            main_window.overrideredirect(True)
-            apply_win32_styles()
-            hwnd = get_main_hwnd()
-            if hwnd and user32 is not None:
-                user32.ShowWindow(hwnd, SW_RESTORE)
-                user32.SetForegroundWindow(hwnd)
-
-        main_window.lift()
-        main_window.focus_force()
 
     def on_window_map(_event):
         nonlocal was_minimized
-        if was_minimized:
-            was_minimized = False
-            restore_window(focus_only=True)
+        if not was_minimized:
+            return
+        was_minimized = False
+        apply_win32_styles()
+        hwnd = get_main_hwnd()
+        if hwnd and user32 is not None:
+            user32.ShowWindow(hwnd, SW_RESTORE)
 
     main_window.update_idletasks()
     if sys.platform == "win32":
