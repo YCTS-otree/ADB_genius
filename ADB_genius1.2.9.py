@@ -90,17 +90,36 @@ def main():
     SWP_NOACTIVATE = 0x0010
     was_minimized = False
 
-    def apply_win32_styles():
+    if sys.platform == "win32" and user32 is not None:
+        get_window_long_ptr = user32.GetWindowLongPtrW
+        set_window_long_ptr = user32.SetWindowLongPtrW
+    else:
+        get_window_long_ptr = None
+        set_window_long_ptr = None
+
+    def get_main_hwnd():
         if sys.platform != "win32" or user32 is None:
-            return
+            return None
         hwnd = main_window.winfo_id()
-        style = user32.GetWindowLongW(hwnd, GWL_STYLE)
+        parent_hwnd = user32.GetParent(hwnd)
+        return parent_hwnd if parent_hwnd else hwnd
+
+    def apply_win32_styles():
+        if get_window_long_ptr is None or set_window_long_ptr is None:
+            return
+        hwnd = get_main_hwnd()
+        if not hwnd:
+            return
+        style = get_window_long_ptr(hwnd, GWL_STYLE)
         style |= WS_SYSMENU | WS_MINIMIZEBOX
-        user32.SetWindowLongW(hwnd, GWL_STYLE, style)
-        exstyle = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-        exstyle |= WS_EX_APPWINDOW
-        exstyle &= ~WS_EX_TOOLWINDOW
-        user32.SetWindowLongW(hwnd, GWL_EXSTYLE, exstyle)
+        set_window_long_ptr(hwnd, GWL_STYLE, style)
+
+        # 读取扩展样式后强制移除工具窗口标记并添加应用窗口标记，
+        # 保证无边框窗口仍显示在任务栏和 Alt-Tab 中。
+        exstyle = get_window_long_ptr(hwnd, GWL_EXSTYLE)
+        exstyle = (exstyle | WS_EX_APPWINDOW) & ~WS_EX_TOOLWINDOW
+        set_window_long_ptr(hwnd, GWL_EXSTYLE, exstyle)
+
         user32.SetWindowPos(
             hwnd,
             0,
@@ -113,31 +132,26 @@ def main():
 
     def minimize_window():
         nonlocal was_minimized
-        if sys.platform != "win32" or user32 is None:
-            return
-        hwnd = main_window.winfo_id()
         was_minimized = True
-        user32.ShowWindow(hwnd, SW_MINIMIZE)
-
-    def restore_window(focus_only=False):
-        if sys.platform != "win32" or user32 is None:
+        hwnd = get_main_hwnd()
+        if hwnd and user32 is not None:
+            user32.ShowWindow(hwnd, SW_MINIMIZE)
             return
-        hwnd = main_window.winfo_id()
-        if not focus_only:
-            user32.ShowWindow(hwnd, SW_RESTORE)
-        user32.SetForegroundWindow(hwnd)
-        main_window.lift()
-        main_window.focus_force()
+        main_window.iconify()
 
     def on_window_map(_event):
         nonlocal was_minimized
-        if was_minimized:
-            was_minimized = False
-            restore_window(focus_only=True)
+        if not was_minimized:
+            return
+        was_minimized = False
+        apply_win32_styles()
+        hwnd = get_main_hwnd()
+        if hwnd and user32 is not None:
+            user32.ShowWindow(hwnd, SW_RESTORE)
 
     main_window.update_idletasks()
     if sys.platform == "win32":
-        main_window.after(0, apply_win32_styles)
+        apply_win32_styles()
         main_window.bind("<Map>", on_window_map)
 
 
