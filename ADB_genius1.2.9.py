@@ -134,7 +134,7 @@ def main():
         was_minimized = True
         hwnd = get_main_hwnd()
         if hwnd and user32 is not None:
-            user32.ShowWindow(hwnd, SW_MINIMIZE)
+            user32.ShowWindow(hwnd, 6)  # SW_MINIMIZE
             return
         main_window.iconify()
 
@@ -146,7 +146,7 @@ def main():
         apply_win32_styles()
         hwnd = get_main_hwnd()
         if hwnd and user32 is not None:
-            user32.ShowWindow(hwnd, SW_RESTORE)
+            user32.ShowWindow(hwnd, 9)  # SW_RESTORE
 
     main_window.update_idletasks()
     if sys.platform == "win32":
