@@ -148,9 +148,21 @@ def main():
         if hwnd and user32 is not None:
             user32.ShowWindow(hwnd, 9)  # SW_RESTORE
 
+    def ensure_taskbar_icon_visible():
+        if sys.platform != "win32" or user32 is None:
+            return
+        apply_win32_styles()
+        hwnd = get_main_hwnd()
+        if not hwnd:
+            return
+        user32.ShowWindow(hwnd, 0)  # SW_HIDE
+        user32.ShowWindow(hwnd, 8)  # SW_SHOWNA
+        apply_win32_styles()
+
     main_window.update_idletasks()
     if sys.platform == "win32":
         apply_win32_styles()
+        main_window.after(10, ensure_taskbar_icon_visible)
         main_window.bind("<Map>", on_window_map)
 
 
